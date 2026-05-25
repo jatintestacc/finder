@@ -20,16 +20,12 @@ export async function POST(req: NextRequest) {
 
     await getOrCreateSession(resolvedSessionId);
 
-    // Convert boards array to comma-separated string if needed
+    // Store resume in Redis to bypass GitHub input limits (max 64KB)
+    await redis.set(`resume:${resolvedSessionId}`, resume_b64, { ex: 3600 });
+
     const boardsString = Array.isArray(boards) ? boards.join(",") : (boards || "linkedin,indeed,glassdoor,naukri,wellfound");
 
-    console.log(`Triggering workflow for role: ${role}, provider: ${provider}, boards: ${boardsString}`);
-    console.log("Inputs being sent:", { 
-      role, location, limit, ats_threshold, provider, 
-      api_key: api_key ? "****" : "missing",
-      openai_base_url, boards: boardsString,
-      resume_len: resume_b64.length
-    });
+    console.log(`Triggering Job Hunt: role=${role}, provider=${provider}`);
 
     // 1. Trigger GitHub Workflow
     const success = await triggerWorkflow({
@@ -37,11 +33,13 @@ export async function POST(req: NextRequest) {
       location: String(location || "auto"),
       limit: String(limit || "100"),
       ats_threshold: String(ats_threshold || "55"),
-      resume_b64,
       provider: String(provider || "GEMINI"),
       api_key: String(api_key),
       openai_base_url: String(openai_base_url || ""),
       boards: boardsString,
+      redis_url: process.env.UPSTASH_REDIS_REST_URL || "",
+      redis_token: process.env.UPSTASH_REDIS_REST_TOKEN || "",
+      session_id: resolvedSessionId,
     });
 
     if (!success) {

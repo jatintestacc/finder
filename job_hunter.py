@@ -584,12 +584,16 @@ async def main():
     parser.add_argument("--provider", help="Force specific AI provider")
     parser.add_argument("--api-key", help="API key for the selected provider")
     parser.add_argument("--openai-base-url", help="Custom base URL for OpenAI-compatible providers")
+    parser.add_argument("--redis-url", help="Upstash Redis URL to fetch resume")
+    parser.add_argument("--redis-token", help="Upstash Redis Token")
+    parser.add_argument("--session-id", help="Session ID to fetch resume from Redis")
     parser.add_argument("--log-level", default="INFO", help="Log level")
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
 
     # 1. AI Provider Selection
+    # ... (Selection logic remains the same)
     active_provider = args.provider.upper() if args.provider else None
     api_key = args.api_key
     
@@ -615,8 +619,31 @@ async def main():
     logger.info(f"ACTIVE_PROVIDER: {active_provider}")
 
     # 2. Resume Processing
-    logger.info(f"Parsing resume: {args.resume}")
-    resume_text = parse_resume(args.resume)
+    resume_path = args.resume
+    
+    # If resume is a session ID, fetch from Redis
+    if args.redis_url and args.redis_token and args.session_id:
+        logger.info(f"Fetching resume from Redis for session: {args.session_id}")
+        async with aiohttp.ClientSession() as session:
+            headers = {"Authorization": f"Bearer {args.redis_token}"}
+            # Fetch from session:{id}:resume key
+            url = f"{args.redis_url}/get/resume:{args.session_id}"
+            async with session.get(url, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data.get("result"):
+                        resume_b64 = data["result"]
+                        resume_path = os.path.join(args.output_dir, f"resume_{args.session_id}.pdf")
+                        with open(resume_path, "wb") as f:
+                            f.write(base64.b64decode(resume_b64))
+                        logger.info(f"Resume downloaded and saved to {resume_path}")
+                    else:
+                        logger.error("Resume not found in Redis result")
+                else:
+                    logger.error(f"Failed to fetch resume from Redis: {resp.status}")
+
+    logger.info(f"Parsing resume: {resume_path}")
+    resume_text = parse_resume(resume_path)
     async with AIClient(active_provider, api_key) as client:
         resume_profile = await extract_resume_profile(client, resume_text)
     

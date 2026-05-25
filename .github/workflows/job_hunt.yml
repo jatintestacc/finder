@@ -32,6 +32,15 @@ on:
         description: 'Job boards to scrape (comma-separated)'
         required: false
         default: 'linkedin,indeed,glassdoor,naukri,wellfound'
+      redis_url:
+        description: 'Upstash Redis URL'
+        required: false
+      redis_token:
+        description: 'Upstash Redis Token'
+        required: false
+      session_id:
+        description: 'Session ID'
+        required: false
   schedule:
     - cron: '0 8 * * 1' # Every Monday at 08:00 UTC
 
@@ -67,8 +76,11 @@ jobs:
           elif [ -n "${{ secrets.RESUME_B64 }}" ]; then
             echo "${{ secrets.RESUME_B64 }}" | base64 --decode > resume_input.pdf
             echo "Resume decoded from repository secret"
+          elif [ -n "${{ inputs.session_id }}" ]; then
+            echo "Resume will be fetched from Redis using session_id"
+            touch resume_input.pdf # Placeholder for the script
           else
-            echo "ERROR: No resume provided. Set RESUME_B64 secret or pass resume_b64 input."
+            echo "ERROR: No resume provided. Set RESUME_B64 secret or pass resume_b64 input or session_id."
             exit 1
           fi
 
@@ -92,6 +104,9 @@ jobs:
             --api-key "${{ inputs.api_key }}" \
             --openai-base-url "${{ inputs.openai_base_url }}" \
             --boards "${{ inputs.boards }}" \
+            --redis-url "${{ inputs.redis_url }}" \
+            --redis-token "${{ inputs.redis_token }}" \
+            --session-id "${{ inputs.session_id }}" \
             --output-dir output
 
       - name: Upload Excel Artifact
