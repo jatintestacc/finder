@@ -82,6 +82,8 @@ class ResumeProfile:
     job_titles: List[str] = field(default_factory=list)
     certifications: List[str] = field(default_factory=list)
     tech_keywords: List[str] = field(default_factory=list)
+    suggested_role: str = "Software Engineer"
+    suggested_location: str = "Remote"
 
 @dataclass
 class RawJob:
@@ -258,7 +260,9 @@ async def extract_resume_profile(client: AIClient, raw_text: str) -> ResumeProfi
     prompt = f"""
     Extract structured information from this resume text. 
     Return ONLY a JSON object with these keys: 
-    skills (list), experience_years (int), education (list), job_titles (list), certifications (list), tech_keywords (list).
+    skills (list), experience_years (int), education (list), job_titles (list), certifications (list), tech_keywords (list),
+    suggested_role (string: the most likely target job title for this person),
+    suggested_location (string: city/country or 'Remote' based on address/preference in resume).
     
     Resume Text:
     {raw_text[:8000]}
@@ -571,8 +575,8 @@ async def main():
     import argparse
     parser = argparse.ArgumentParser(description="Job Hunter AI Agent")
     parser.add_argument("--resume", required=True, help="Path to resume PDF/DOCX")
-    parser.add_argument("--role", required=True, help="Target job role")
-    parser.add_argument("--location", default="Remote", help="Job location")
+    parser.add_argument("--role", default="auto", help="Target job role (or 'auto')")
+    parser.add_argument("--location", default="auto", help="Job location (or 'auto' or 'all')")
     parser.add_argument("--limit", type=int, default=100, help="Max jobs to process")
     parser.add_argument("--ats-threshold", type=int, default=0, help="Min ATS score")
     parser.add_argument("--boards", default="linkedin,indeed,glassdoor,naukri,wellfound", help="Comma-separated boards")
@@ -616,17 +620,31 @@ async def main():
     async with AIClient(active_provider, api_key) as client:
         resume_profile = await extract_resume_profile(client, resume_text)
     
+    # Auto-detect role and location if requested
+    target_role = args.role
+    if not target_role or target_role.lower() == "auto":
+        target_role = resume_profile.suggested_role
+        logger.info(f"Auto-detected role from resume: {target_role}")
+
+    target_location = args.location
+    if not target_location or target_location.lower() == "auto":
+        target_location = resume_profile.suggested_location
+        logger.info(f"Auto-detected location from resume: {target_location}")
+    elif target_location.lower() == "all":
+        target_location = "" # Global search
+        logger.info("Global location search requested ('all')")
+
     # 3. Scraping
     boards = args.boards.split(",")
     raw_jobs = []
     async with async_playwright() as p:
         scraper = JobScraper(p)
         tasks = []
-        if "linkedin" in boards: tasks.append(scraper.scrape_linkedin(args.role, args.location))
-        if "indeed" in boards: tasks.append(scraper.scrape_indeed(args.role, args.location))
-        if "wellfound" in boards: tasks.append(scraper.scrape_wellfound(args.role, args.location))
-        if "glassdoor" in boards: tasks.append(scraper.scrape_glassdoor(args.role, args.location))
-        if "naukri" in boards: tasks.append(scraper.scrape_naukri(args.role, args.location))
+        if "linkedin" in boards: tasks.append(scraper.scrape_linkedin(target_role, target_location))
+        if "indeed" in boards: tasks.append(scraper.scrape_indeed(target_role, target_location))
+        if "wellfound" in boards: tasks.append(scraper.scrape_wellfound(target_role, target_location))
+        if "glassdoor" in boards: tasks.append(scraper.scrape_glassdoor(target_role, target_location))
+        if "naukri" in boards: tasks.append(scraper.scrape_naukri(target_role, target_location))
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for res in results:
@@ -667,8 +685,8 @@ async def main():
     summary = {
         "timestamp": datetime.now().isoformat(),
         "resume_file": args.resume,
-        "role": args.role,
-        "location": args.location,
+        "role": target_role,
+        "location": target_location or "All",
         "provider": active_provider,
         "boards": args.boards,
         "total_found": len(raw_jobs),
@@ -679,7 +697,7 @@ async def main():
         "top_match": f"{top_match.job_title} at {top_match.company} (ATS: {top_match.ats_score})" if top_match else "N/A",
         "max_salary": max([r.salary_display for r in processed_results], default="N/A"),
         "remote_count": len([r for r in processed_results if r.remote_type == "Remote"]),
-        "common_gap": "N/A", # Simplified for now
+        "common_gap": "N/A", 
         "common_skill": "N/A"
     }
     

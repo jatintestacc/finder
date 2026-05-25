@@ -10,23 +10,38 @@ export async function POST(req: NextRequest) {
     const cookieSessionId = req.cookies.get("jh_session")?.value;
     const resolvedSessionId = sessionId || cookieSessionId;
 
-    if (!resolvedSessionId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!resolvedSessionId) {
+      console.error("Trigger Error: No sessionId found in body or cookies");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     if (!resume_b64) return NextResponse.json({ error: "Resume is required" }, { status: 400 });
     if (!role) return NextResponse.json({ error: "Role is required" }, { status: 400 });
     if (!api_key) return NextResponse.json({ error: "API Key is required" }, { status: 400 });
 
     await getOrCreateSession(resolvedSessionId);
 
+    // Convert boards array to comma-separated string if needed
+    const boardsString = Array.isArray(boards) ? boards.join(",") : (boards || "linkedin,indeed,glassdoor,naukri,wellfound");
+
+    console.log(`Triggering workflow for role: ${role}, provider: ${provider}, boards: ${boardsString}`);
+    console.log("Inputs being sent:", { 
+      role, location, limit, ats_threshold, provider, 
+      api_key: api_key ? "****" : "missing",
+      openai_base_url, boards: boardsString,
+      resume_len: resume_b64.length
+    });
+
     // 1. Trigger GitHub Workflow
     const success = await triggerWorkflow({
-      role,
-      location,
-      limit: String(limit),
-      ats_threshold: String(ats_threshold),
+      role: String(role || "auto"),
+      location: String(location || "auto"),
+      limit: String(limit || "100"),
+      ats_threshold: String(ats_threshold || "55"),
       resume_b64,
-      provider,
-      api_key,
-      openai_base_url: openai_base_url || "",
+      provider: String(provider || "GEMINI"),
+      api_key: String(api_key),
+      openai_base_url: String(openai_base_url || ""),
+      boards: boardsString,
     });
 
     if (!success) {

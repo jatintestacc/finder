@@ -14,8 +14,8 @@ export default function JobForm({ sessionId }: JobFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    role: "",
-    location: "Remote",
+    role: "auto",
+    location: "auto",
     limit: 100,
     ats_threshold: 55,
     resume_b64: "",
@@ -101,7 +101,7 @@ export default function JobForm({ sessionId }: JobFormProps) {
           <input
             required
             type="text"
-            placeholder="Target Role (e.g. Backend Engineer)"
+            placeholder="Target Role (type 'auto' to detect from resume)"
             className="w-full bg-[#252525] border border-gray-800 rounded-xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
             value={formData.role}
             onChange={(e) => setFormData({ ...formData, role: e.target.value })}
@@ -113,7 +113,7 @@ export default function JobForm({ sessionId }: JobFormProps) {
             <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
               type="text"
-              placeholder="Location"
+              placeholder="Location ('auto' or 'all')"
               className="w-full bg-[#252525] border border-gray-800 rounded-xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}

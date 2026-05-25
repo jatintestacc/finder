@@ -28,6 +28,10 @@ on:
       openai_base_url:
         description: 'OpenAI Base URL'
         required: false
+      boards:
+        description: 'Job boards to scrape (comma-separated)'
+        required: false
+        default: 'linkedin,indeed,glassdoor,naukri,wellfound'
   schedule:
     - cron: '0 8 * * 1' # Every Monday at 08:00 UTC
 
@@ -87,6 +91,7 @@ jobs:
             --provider "${{ inputs.provider }}" \
             --api-key "${{ inputs.api_key }}" \
             --openai-base-url "${{ inputs.openai_base_url }}" \
+            --boards "${{ inputs.boards }}" \
             --output-dir output
 
       - name: Upload Excel Artifact
