@@ -24,7 +24,7 @@ export async function getOrCreateSession(sessionId: string): Promise<SessionData
   const existing = await redis.get(key);
 
   if (existing) {
-    return typeof existing === "string" ? JSON.parse(existing) : existing;
+    return (typeof existing === "string" ? JSON.parse(existing) : existing) as SessionData;
   }
 
   const now = new Date();
@@ -57,7 +57,7 @@ export async function getSession(sessionId: string): Promise<SessionData | null>
   const key = `session:${sessionId}`;
   const data = await redis.get(key);
   if (!data) return null;
-  return typeof data === "string" ? JSON.parse(data) : data;
+  return (typeof data === "string" ? JSON.parse(data) : data) as SessionData;
 }
 
 export async function updateSession(sessionId: string, updates: Partial<SessionData>) {
