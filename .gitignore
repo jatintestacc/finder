@@ -1,0 +1,71 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Temp files
+temp_*
+*.tmp
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs
+job_hunter.log
+*.log
+
+# Output (but keep the template)
+output/
+!output/.gitkeep
+
+# Resume files (local, never commit)
+resume.pdf
+resume.docx
+resume_input.pdf
+resume_input.docx
+resume_b64.txt
+
+# Streamlit cache
+.streamlit/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store

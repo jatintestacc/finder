@@ -1,0 +1,160 @@
+name: Job Hunt
+
+on:
+  workflow_dispatch:
+    inputs:
+      role:
+        description: 'Target job role'
+        required: true
+        default: 'Software Engineer'
+      location:
+        description: 'Target location'
+        required: false
+        default: 'Remote'
+      limit:
+        description: 'Max jobs to process'
+        required: false
+        default: '100'
+      ats_threshold:
+        description: 'Minimum ATS score to include'
+        required: false
+        default: '0'
+  
+  schedule:
+    # Every Monday at 8:00 AM UTC
+    - cron: '0 8 * * 1'
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  job_hunt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    env:
+      # All 5 provider keys (script auto-detects which one is present)
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      
+      # Optional: for email notifications
+      SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+      NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
+      
+      # Logging
+      LOG_LEVEL: INFO
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium --with-deps
+      
+      - name: Decode and write resume
+        run: |
+          echo "${{ secrets.RESUME_B64 }}" | base64 --decode > resume_input.pdf
+          ls -lh resume_input.pdf
+      
+      - name: Run Job Hunter
+        run: |
+          python job_hunter.py \
+            --resume resume_input.pdf \
+            --role "${{ github.event.inputs.role || 'Software Engineer' }}" \
+            --location "${{ github.event.inputs.location || 'Remote' }}" \
+            --limit ${{ github.event.inputs.limit || '100' }} \
+            --ats-threshold ${{ github.event.inputs.ats_threshold || '0' }} \
+            --boards linkedin,indeed,glassdoor,naukri,wellfound \
+            --output-dir ./output \
+            --log-level INFO
+      
+      - name: Upload Excel results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: job_results
+          path: output/job_results_*.xlsx
+          retention-days: 30
+      
+      - name: Upload CSV results (if present)
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: job_results_csv
+          path: output/*.csv
+          retention-days: 30
+      
+      - name: Upload JSON summary
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: job_results_summary
+          path: output/summary.json
+          retention-days: 30
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: job_hunter_logs
+          path: job_hunter.log
+          retention-days: 30
+      
+      - name: Write GitHub Step Summary
+        if: success()
+        run: |
+          python << 'EOF'
+          import json
+          from pathlib import Path
+          
+          summary_file = Path("output/summary.json")
+          if summary_file.exists():
+              with open(summary_file) as f:
+                  data = json.load(f)
+              
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+                  f.write("## 🎯 Job Hunt Results\n\n")
+                  f.write(f"**Role:** {data.get('role', 'N/A')}\n\n")
+                  f.write("| Metric | Value |\n")
+                  f.write("|--------|-------|\n")
+                  f.write(f"| Total jobs found | {data.get('total_jobs_found', 0)} |\n")
+                  f.write(f"| Perfect matches (≥80) | {data.get('perfect_matches', 0)} |\n")
+                  f.write(f"| Should apply (55–79) | {data.get('should_apply', 0)} |\n")
+                  f.write(f"| Not suitable (<55) | {data.get('not_suitable', 0)} |\n")
+                  f.write(f"| Remote opportunities | {data.get('remote_opportunities', 0)} |\n")
+                  f.write(f"| AI provider used | {data.get('ai_provider_used', 'Unknown')} |\n")
+                  f.write(f"| Top match | {data.get('top_match', 'N/A')} |\n")
+                  f.write(f"| Most required skill | {data.get('most_required_skill', 'N/A')} |\n")
+                  f.write(f"| Most common skill gap | {data.get('most_common_skill_gap', 'N/A')} |\n\n")
+                  f.write(f"[Download results](artifacts) | [View logs](logs)\n")
+          else:
+              print("summary.json not found")
+          EOF
+      
+      - name: Cleanup resume file
+        if: always()
+        run: |
+          rm -f resume_input.pdf
+          echo "Resume file cleaned up"
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Job Hunt workflow failed"
+          echo "Check logs for details"
