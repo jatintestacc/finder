@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "app/api/artifact/[sessionId]/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/trigger/route.ts": {
+      "maxDuration": 30
+    },
+    "app/api/webhook/route.ts": {
+      "maxDuration": 10
+    }
+  }
+}

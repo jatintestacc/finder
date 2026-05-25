@@ -1,40 +1,12 @@
-# Core async & HTTP
-aiohttp==3.9.1
-asyncio==3.4.3
-
-# Job scraping
-playwright==1.40.0
-beautifulsoup4==4.12.2
-lxml==4.9.3
-fake-useragent==1.4.0
-
-# Resume parsing
-pdfplumber==0.10.3
-python-docx==0.8.11
-
-# Excel output
-openpyxl==3.11.0
-
-# AI providers
-anthropic==0.7.8
-google-generativeai==0.3.0
-groq==0.4.2
-openai==1.3.0  # For DeepSeek & Nvidia NIM compatibility
-
-# Environment & secrets
-python-dotenv==1.0.0
-
-# Progress & logging
-tqdm==4.66.1
-structlog==23.2.0
-
-# Email notifications (optional)
+aiohttp==3.9.5
+playwright==1.44.0
+beautifulsoup4==4.12.3
+pdfplumber==0.11.0
+python-docx==1.1.2
+openpyxl==3.1.2
+python-dotenv==1.0.1
+tqdm==4.66.4
 sendgrid==6.11.0
-
-# Type hints
-typing-extensions==4.9.0
-
-# Streamlit UI (optional)
-streamlit==1.28.1
-matplotlib==3.8.2
-plotly==5.18.0
+lxml==5.2.2
+fake-useragent==1.5.1
+structlog==24.1.0

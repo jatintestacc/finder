@@ -1,4 +1,4 @@
-name: Job Hunt
+name: Job Hunter AI
 
 on:
   workflow_dispatch:
@@ -8,153 +8,116 @@ on:
         required: true
         default: 'Software Engineer'
       location:
-        description: 'Target location'
-        required: false
+        description: 'Location or Remote'
         default: 'Remote'
       limit:
-        description: 'Max jobs to process'
-        required: false
+        description: 'Max jobs to scan'
         default: '100'
       ats_threshold:
-        description: 'Minimum ATS score to include'
-        required: false
+        description: 'Minimum ATS score (0-100)'
         default: '0'
-  
+      resume_b64:
+        description: 'Base64-encoded resume (sent by Next.js UI)'
+        required: false
+      provider:
+        description: 'AI Provider'
+        required: false
+      api_key:
+        description: 'AI API Key'
+        required: false
+      openai_base_url:
+        description: 'OpenAI Base URL'
+        required: false
   schedule:
-    # Every Monday at 8:00 AM UTC
-    - cron: '0 8 * * 1'
+    - cron: '0 8 * * 1' # Every Monday at 08:00 UTC
 
 permissions:
   contents: read
   actions: write
 
 jobs:
-  job_hunt:
+  hunt:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    
-    env:
-      # All 5 provider keys (script auto-detects which one is present)
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
-      
-      # Optional: for email notifications
-      SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
-      NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
-      
-      # Logging
-      LOG_LEVEL: INFO
-    
+
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-      
-      - name: Install Python dependencies
+
+      - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
-      
-      - name: Install Playwright browsers
-        run: |
           playwright install chromium --with-deps
-      
-      - name: Decode and write resume
+
+      - name: Decode Resume
         run: |
-          echo "${{ secrets.RESUME_B64 }}" | base64 --decode > resume_input.pdf
-          ls -lh resume_input.pdf
-      
+          if [ -n "${{ inputs.resume_b64 }}" ]; then
+            echo "${{ inputs.resume_b64 }}" | base64 --decode > resume_input.pdf
+            echo "Resume decoded from workflow input"
+          elif [ -n "${{ secrets.RESUME_B64 }}" ]; then
+            echo "${{ secrets.RESUME_B64 }}" | base64 --decode > resume_input.pdf
+            echo "Resume decoded from repository secret"
+          else
+            echo "ERROR: No resume provided. Set RESUME_B64 secret or pass resume_b64 input."
+            exit 1
+          fi
+
       - name: Run Job Hunter
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY:    ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY:      ${{ secrets.GROQ_API_KEY }}
+          DEEPSEEK_API_KEY:  ${{ secrets.DEEPSEEK_API_KEY }}
+          NVIDIA_API_KEY:    ${{ secrets.NVIDIA_API_KEY }}
+          SENDGRID_API_KEY:  ${{ secrets.SENDGRID_API_KEY }}
+          NOTIFY_EMAIL:      ${{ secrets.NOTIFY_EMAIL }}
         run: |
           python job_hunter.py \
             --resume resume_input.pdf \
-            --role "${{ github.event.inputs.role || 'Software Engineer' }}" \
-            --location "${{ github.event.inputs.location || 'Remote' }}" \
-            --limit ${{ github.event.inputs.limit || '100' }} \
-            --ats-threshold ${{ github.event.inputs.ats_threshold || '0' }} \
-            --boards linkedin,indeed,glassdoor,naukri,wellfound \
-            --output-dir ./output \
-            --log-level INFO
-      
-      - name: Upload Excel results
-        if: always()
-        uses: actions/upload-artifact@v3
+            --role "${{ inputs.role }}" \
+            --location "${{ inputs.location }}" \
+            --limit ${{ inputs.limit }} \
+            --ats-threshold ${{ inputs.ats_threshold }} \
+            --provider "${{ inputs.provider }}" \
+            --api-key "${{ inputs.api_key }}" \
+            --openai-base-url "${{ inputs.openai_base_url }}" \
+            --output-dir output
+
+      - name: Upload Excel Artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: job_results
-          path: output/job_results_*.xlsx
+          name: jobs-excel
+          path: output/*.xlsx
           retention-days: 30
-      
-      - name: Upload CSV results (if present)
-        if: always()
-        uses: actions/upload-artifact@v3
+
+      - name: Upload JSON Summary
+        uses: actions/upload-artifact@v4
         with:
-          name: job_results_csv
-          path: output/*.csv
-          retention-days: 30
-      
-      - name: Upload JSON summary
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: job_results_summary
+          name: hunt-summary
           path: output/summary.json
           retention-days: 30
-      
-      - name: Upload logs
+
+      - name: Generate GitHub Step Summary
+        run: |
+          if [ -f output/summary.json ]; then
+            STATS=$(cat output/summary.json)
+            echo "## Job Hunt Results" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Total jobs found | $(echo $STATS | jq -r .total_found) |" >> $GITHUB_STEP_SUMMARY
+            echo "| Perfect matches  | $(echo $STATS | jq -r .perfect) |" >> $GITHUB_STEP_SUMMARY
+            echo "| Should apply     | $(echo $STATS | jq -r .should_apply) |" >> $GITHUB_STEP_SUMMARY
+            echo "| Not suitable     | $(echo $STATS | jq -r .not_suitable) |" >> $GITHUB_STEP_SUMMARY
+            echo "| Top match        | $(echo $STATS | jq -r .top_match) |" >> $GITHUB_STEP_SUMMARY
+            echo "| AI provider used | $(echo $STATS | jq -r .provider) |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Cleanup
         if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: job_hunter_logs
-          path: job_hunter.log
-          retention-days: 30
-      
-      - name: Write GitHub Step Summary
-        if: success()
-        run: |
-          python << 'EOF'
-          import json
-          from pathlib import Path
-          
-          summary_file = Path("output/summary.json")
-          if summary_file.exists():
-              with open(summary_file) as f:
-                  data = json.load(f)
-              
-              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
-                  f.write("## 🎯 Job Hunt Results\n\n")
-                  f.write(f"**Role:** {data.get('role', 'N/A')}\n\n")
-                  f.write("| Metric | Value |\n")
-                  f.write("|--------|-------|\n")
-                  f.write(f"| Total jobs found | {data.get('total_jobs_found', 0)} |\n")
-                  f.write(f"| Perfect matches (≥80) | {data.get('perfect_matches', 0)} |\n")
-                  f.write(f"| Should apply (55–79) | {data.get('should_apply', 0)} |\n")
-                  f.write(f"| Not suitable (<55) | {data.get('not_suitable', 0)} |\n")
-                  f.write(f"| Remote opportunities | {data.get('remote_opportunities', 0)} |\n")
-                  f.write(f"| AI provider used | {data.get('ai_provider_used', 'Unknown')} |\n")
-                  f.write(f"| Top match | {data.get('top_match', 'N/A')} |\n")
-                  f.write(f"| Most required skill | {data.get('most_required_skill', 'N/A')} |\n")
-                  f.write(f"| Most common skill gap | {data.get('most_common_skill_gap', 'N/A')} |\n\n")
-                  f.write(f"[Download results](artifacts) | [View logs](logs)\n")
-          else:
-              print("summary.json not found")
-          EOF
-      
-      - name: Cleanup resume file
-        if: always()
-        run: |
-          rm -f resume_input.pdf
-          echo "Resume file cleaned up"
-      
-      - name: Notify on failure
-        if: failure()
-        run: |
-          echo "❌ Job Hunt workflow failed"
-          echo "Check logs for details"
+        run: rm -f resume_input.pdf
