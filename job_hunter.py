@@ -374,6 +374,37 @@ async def analyze_job(client: AIClient, resume: ResumeProfile, job: RawJob) -> J
         data = json.loads(res)
         
         result = JobResult(**data)
+        result.job_title = result.job_title or job.title
+        result.company = result.company or job.company
+        result.location = result.location or "Unknown"
+        result.remote_type = result.remote_type or "Unknown"
+        result.employment_type = result.employment_type or "Unknown"
+        result.experience_level = result.experience_level or "Unknown"
+        result.industry = result.industry or "Unknown"
+        result.company_size = result.company_size or "Unknown"
+        result.salary_display = result.salary_display or "Not disclosed"
+        result.visa_sponsorship = result.visa_sponsorship or "Unknown"
+        result.description_summary = result.description_summary or ""
+        result.cover_letter_hint = result.cover_letter_hint or ""
+        result.skills_required = result.skills_required if isinstance(result.skills_required, list) else ([] if result.skills_required in [None, ""] else [str(result.skills_required)])
+        result.responsibilities = result.responsibilities if isinstance(result.responsibilities, list) else ([] if result.responsibilities in [None, ""] else [str(result.responsibilities)])
+        result.nice_to_have = result.nice_to_have if isinstance(result.nice_to_have, list) else ([] if result.nice_to_have in [None, ""] else [str(result.nice_to_have)])
+        result.keywords_matched = result.keywords_matched if isinstance(result.keywords_matched, list) else ([] if result.keywords_matched in [None, ""] else [str(result.keywords_matched)])
+        result.keywords_missing = result.keywords_missing if isinstance(result.keywords_missing, list) else ([] if result.keywords_missing in [None, ""] else [str(result.keywords_missing)])
+        result.skill_gaps = result.skill_gaps if isinstance(result.skill_gaps, list) else ([] if result.skill_gaps in [None, ""] else [str(result.skill_gaps)])
+        result.resume_tips = result.resume_tips if isinstance(result.resume_tips, list) else ([] if result.resume_tips in [None, ""] else [str(result.resume_tips)])
+        result.interview_topics = result.interview_topics if isinstance(result.interview_topics, list) else ([] if result.interview_topics in [None, ""] else [str(result.interview_topics)])
+        result.ats_breakdown = result.ats_breakdown if isinstance(result.ats_breakdown, dict) else {}
+        try:
+            result.ats_score = int(result.ats_score or 0)
+        except (TypeError, ValueError):
+            result.ats_score = 0
+        for attr in ["salary_min", "salary_max"]:
+            value = getattr(result, attr)
+            try:
+                setattr(result, attr, int(value) if value not in [None, ""] else None)
+            except (TypeError, ValueError):
+                setattr(result, attr, None)
         result.source_board = job.source_board
         result.ai_provider_used = client.provider_name
         result.apply_url = job.url if not result.apply_url else result.apply_url
@@ -534,6 +565,25 @@ def generate_excel(results: List[JobResult], output_path: str, summary: Dict[str
 
     # Finalize
     wb.save(output_path)
+
+
+def get_highest_salary_display(results: List[JobResult]) -> str:
+    salary_results = [
+        r for r in results
+        if isinstance(r.salary_max, int) or isinstance(r.salary_min, int)
+    ]
+    if not salary_results:
+        return "N/A"
+
+    best_paid = max(
+        salary_results,
+        key=lambda r: (
+            r.salary_max if isinstance(r.salary_max, int) else (
+                r.salary_min if isinstance(r.salary_min, int) else 0
+            )
+        ),
+    )
+    return best_paid.salary_display or "N/A"
 
 # --- Notification ---
 
@@ -707,7 +757,7 @@ async def main():
     perfect = [r for r in processed_results if r.ats_score >= 80]
     should = [r for r in processed_results if 55 <= r.ats_score < 80]
     not_suitable = [r for r in processed_results if r.ats_score < 55]
-    top_match = processed_results[0] if processed_results else None
+    top_match = max(processed_results, key=lambda r: r.ats_score, default=None)
     
     summary = {
         "timestamp": datetime.now().isoformat(),
@@ -722,8 +772,8 @@ async def main():
         "should_apply": len(should),
         "not_suitable": len(not_suitable),
         "top_match": f"{top_match.job_title} at {top_match.company} (ATS: {top_match.ats_score})" if top_match else "N/A",
-        "max_salary": max([r.salary_display for r in processed_results], default="N/A"),
-        "remote_count": len([r for r in processed_results if r.remote_type == "Remote"]),
+        "max_salary": get_highest_salary_display(processed_results),
+        "remote_count": len([r for r in processed_results if (r.remote_type or "").lower() == "remote"]),
         "common_gap": "N/A", 
         "common_skill": "N/A"
     }
