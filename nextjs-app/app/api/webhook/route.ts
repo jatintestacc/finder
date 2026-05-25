@@ -4,6 +4,20 @@ import { updateSession } from "../../../lib/session";
 import { getWorkflowArtifacts } from "../../../lib/github";
 import { NextRequest, NextResponse } from "next/server";
 
+function extractSessionId(workflowRun: any): string | null {
+  const candidates = [
+    String(workflowRun?.display_title || ""),
+    String(workflowRun?.name || ""),
+  ];
+
+  for (const candidate of candidates) {
+    const match = candidate.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if (match) return match[0];
+  }
+
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
@@ -29,7 +43,8 @@ export async function POST(req: NextRequest) {
     const conclusion = workflow_run.conclusion; // success, failure, cancelled
 
     // Find session by runId
-    const sessionId = await redis.get<string>(`runid:${runId}`);
+    const mappedSessionId = await redis.get<string>(`runid:${runId}`);
+    const sessionId = mappedSessionId || extractSessionId(workflow_run);
     if (!sessionId) {
       return NextResponse.json({ error: "Session not found for run" }, { status: 404 });
     }
@@ -45,12 +60,21 @@ export async function POST(req: NextRequest) {
           resultsReady: true,
           artifactZipUrl: excelArtifact.archive_download_url,
           artifactId: String(excelArtifact.id),
+          workflowRunUrl: workflow_run.html_url ?? null,
         });
       } else {
-        await updateSession(sessionId, { status: "failed" });
+        await updateSession(sessionId, {
+          status: "failed",
+          resultsReady: false,
+          workflowRunUrl: workflow_run.html_url ?? null,
+        });
       }
     } else {
-      await updateSession(sessionId, { status: "failed" });
+      await updateSession(sessionId, {
+        status: "failed",
+        resultsReady: false,
+        workflowRunUrl: workflow_run.html_url ?? null,
+      });
     }
 
     return NextResponse.json({ message: "Updated" }, { status: 200 });

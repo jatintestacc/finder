@@ -46,11 +46,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to trigger job hunt workflow" }, { status: 502 });
     }
 
+    await updateSession(resolvedSessionId, {
+      status: "triggered",
+      role,
+      location,
+    });
+
     // 2. Wait a few seconds for GitHub to register the run
     await new Promise((resolve) => setTimeout(resolve, 4000));
 
     // 3. Find the run ID
-    const run = await getRecentWorkflowRun();
+    const run = await getRecentWorkflowRun(resolvedSessionId);
     
     if (run) {
       // 4. Update Redis

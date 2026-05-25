@@ -36,14 +36,14 @@ export async function triggerWorkflow(inputs: Record<string, string>) {
   return res.status === 204;
 }
 
-export async function getRecentWorkflowRun() {
+export async function getRecentWorkflowRun(sessionId?: string) {
   const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
   const GITHUB_OWNER = process.env.GITHUB_OWNER;
   const GITHUB_REPO = process.env.GITHUB_REPO;
 
   if (!GITHUB_TOKEN || !GITHUB_OWNER || !GITHUB_REPO) return null;
 
-  const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runs?event=workflow_dispatch&per_page=5`;
+  const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/actions/runs?event=workflow_dispatch&per_page=20`;
   
   const res = await fetch(url, {
     headers: {
@@ -56,15 +56,25 @@ export async function getRecentWorkflowRun() {
 
   if (!res.ok) return null;
   const data = await res.json();
-  
-  // Find the most recent run triggered within the last 60 seconds (buffer)
+
+  const workflowRuns = Array.isArray(data.workflow_runs) ? data.workflow_runs : [];
   const now = new Date().getTime();
-  const recentRun = data.workflow_runs.find((run: any) => {
+  const recentRuns = workflowRuns.filter((run: any) => {
     const runTime = new Date(run.created_at).getTime();
-    return (now - runTime) < 60000;
+    const isRecent = (now - runTime) < 5 * 60 * 1000;
+    const isTargetWorkflow = String(run.path || "").includes("job_hunt.yml");
+    const isDispatch = run.event === "workflow_dispatch";
+    return isRecent && isTargetWorkflow && isDispatch;
   });
 
-  return recentRun;
+  if (sessionId) {
+    const matchedRun = recentRuns.find((run: any) =>
+      String(run.display_title || "").includes(sessionId)
+    );
+    if (matchedRun) return matchedRun;
+  }
+
+  return recentRuns[0] || null;
 }
 
 export async function getWorkflowArtifacts(runId: string) {
