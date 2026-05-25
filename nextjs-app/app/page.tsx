@@ -1,8 +1,8 @@
-import { getOrCreateSession } from "@/lib/session";
+import { getOrCreateSession } from "../lib/session";
 import { cookies } from "next/headers";
-import ResumeUploader from "@/components/ResumeUploader";
-import JobForm from "@/components/JobForm";
-import SessionRecovery from "@/components/SessionRecovery";
+import ResumeUploader from "../components/ResumeUploader";
+import JobForm from "../components/JobForm";
+import SessionRecovery from "../components/SessionRecovery";
 import { Briefcase, Zap, Shield, Search } from "lucide-react";
 
 export default async function LandingPage() {

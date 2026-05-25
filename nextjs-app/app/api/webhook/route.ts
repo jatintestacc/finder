@@ -1,7 +1,7 @@
-import { verifySignature } from "@/lib/crypto";
-import { redis } from "@/lib/redis";
-import { updateSession } from "@/lib/session";
-import { getWorkflowArtifacts } from "@/lib/github";
+import { verifySignature } from "../../../lib/crypto";
+import { redis } from "../../../lib/redis";
+import { updateSession } from "../../../lib/session";
+import { getWorkflowArtifacts } from "../../../lib/github";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {

@@ -1,7 +1,7 @@
-import { getSession, updateSession } from "@/lib/session";
-import { triggerWorkflow, getRecentWorkflowRun } from "@/lib/github";
+import { getSession, updateSession } from "../../../lib/session";
+import { triggerWorkflow, getRecentWorkflowRun } from "../../../lib/github";
 import { NextRequest, NextResponse } from "next/server";
-import { redis } from "@/lib/redis";
+import { redis } from "../../../lib/redis";
 
 export async function POST(req: NextRequest) {
   try {

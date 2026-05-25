@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/session";
+import { getSession } from "../../../lib/session";
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 

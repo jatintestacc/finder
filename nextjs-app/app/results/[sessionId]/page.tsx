@@ -1,7 +1,7 @@
-import { getSession } from "@/lib/session";
-import ResultsCard from "@/components/ResultsCard";
-import StatusPoller from "@/components/StatusPoller";
-import SessionRecovery from "@/components/SessionRecovery";
+import { getSession } from "../../../lib/session";
+import ResultsCard from "../../../components/ResultsCard";
+import StatusPoller from "../../../components/StatusPoller";
+import SessionRecovery from "../../../components/SessionRecovery";
 import { redirect } from "next/navigation";
 import { Download, CheckCircle, Clock, AlertTriangle, Search, Zap } from "lucide-react";
 
@@ -26,7 +26,7 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
   if (session.status !== "complete") {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <StatusPoller sessionId={params.sessionId} initialStatus={session.status} workflowUrl={session.workflowRunUrl} />
+        <StatusPoller sessionId={params.sessionId} initialStatus={session.status} workflowUrl={session.workflowRunUrl ?? undefined} />
       </div>
     );
   }
