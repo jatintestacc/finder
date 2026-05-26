@@ -59,6 +59,7 @@ PROVIDERS = {
 }
 
 PRIORITY_LIST = ["ANTHROPIC", "GEMINI", "GROQ", "DEEPSEEK", "NVIDIA"]
+API_KEY_SECRET_SENTINEL = str(os.getenv("API_KEY_SECRET_SENTINEL")).strip() if os.getenv("API_KEY_SECRET_SENTINEL") else ""
 
 # Logging Setup
 logging.basicConfig(
@@ -646,7 +647,19 @@ async def main():
     # ... (Selection logic remains the same)
     active_provider = args.provider.upper() if args.provider else None
     api_key = args.api_key
-    
+
+    if active_provider and active_provider not in PROVIDERS:
+        logger.error(f"Unsupported AI provider: {active_provider}")
+        sys.exit(1)
+
+    if active_provider and api_key == API_KEY_SECRET_SENTINEL:
+        api_key = os.getenv(PROVIDERS[active_provider]["key"])
+        if api_key:
+            logger.info(f"Using GitHub secret for {active_provider}")
+        else:
+            logger.error(f"GitHub secret {PROVIDERS[active_provider]['key']} is not configured for {active_provider}")
+            sys.exit(1)
+
     if active_provider and api_key:
         if args.openai_base_url and active_provider in ["GROQ", "DEEPSEEK", "NVIDIA"]:
              PROVIDERS[active_provider]["url"] = args.openai_base_url
