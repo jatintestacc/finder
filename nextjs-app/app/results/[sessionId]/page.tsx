@@ -1,8 +1,7 @@
 import { getSession } from "../../../lib/session";
-import ResultsCard from "../../../components/ResultsCard";
 import StatusPoller from "../../../components/StatusPoller";
 import SessionRecovery from "../../../components/SessionRecovery";
-import { redirect } from "next/navigation";
+import ResultsWorkbookTable from "../../../components/ResultsWorkbookTable";
 import { Download, CheckCircle, Clock, AlertTriangle, Search, Zap } from "lucide-react";
 
 export default async function ResultsPage({ params }: { params: { sessionId: string } }) {
@@ -32,7 +31,7 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
   }
 
   return (
-    <main className="container mx-auto px-4 py-16 max-w-4xl space-y-12">
+    <main className="container mx-auto px-4 py-16 max-w-7xl space-y-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-4xl font-bold mb-2">Your Job Hunt Results</h1>
@@ -76,6 +75,8 @@ export default async function ResultsPage({ params }: { params: { sessionId: str
           )}
         </div>
       </div>
+
+      <ResultsWorkbookTable sessionId={params.sessionId} />
 
       <div className="text-center space-y-2 p-8 border border-dashed border-gray-800 rounded-2xl bg-gray-900/30">
         <p className="text-gray-400">Save your session ID to access these results for the next 7 days:</p>

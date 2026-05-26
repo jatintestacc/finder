@@ -648,21 +648,16 @@ async def main():
     active_provider = args.provider.upper() if args.provider else None
     api_key = args.api_key
 
-    if active_provider and active_provider not in PROVIDERS:
+    if api_key == API_KEY_SECRET_SENTINEL:
+        logger.info("API key sentinel detected. Ignoring provider input and auto-selecting from configured GitHub secrets.")
+        active_provider = None
+        api_key = None
+    elif active_provider and active_provider not in PROVIDERS:
         logger.error(f"Unsupported AI provider: {active_provider}")
         sys.exit(1)
 
-    if active_provider and api_key == API_KEY_SECRET_SENTINEL:
-        api_key = os.getenv(PROVIDERS[active_provider]["key"])
-        if api_key:
-            logger.info(f"Using GitHub secret for {active_provider}")
-        else:
-            logger.error(f"GitHub secret {PROVIDERS[active_provider]['key']} is not configured for {active_provider}")
-            sys.exit(1)
-
     if active_provider and api_key:
-        if args.openai_base_url and active_provider in ["GROQ", "DEEPSEEK", "NVIDIA"]:
-             PROVIDERS[active_provider]["url"] = args.openai_base_url
+        pass
     else:
         # Fallback to auto-detection from env if no key provided via CLI
         for p in PRIORITY_LIST:
@@ -674,6 +669,9 @@ async def main():
                         active_provider = p
                         api_key = key
                         break
+
+    if args.openai_base_url and active_provider in ["GROQ", "DEEPSEEK", "NVIDIA"]:
+         PROVIDERS[active_provider]["url"] = args.openai_base_url
     
     if not active_provider or not api_key:
         logger.error("No active AI provider or API key found.")
